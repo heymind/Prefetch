@@ -68,6 +68,7 @@ class PPMModel:
 
 class DGModel:
     def __init__(self, window_size=5, weight_threshold=0.5):
+
         self.G = nx.DiGraph()
         self.window_size = window_size
         self.weight_threshold = weight_threshold
@@ -144,40 +145,112 @@ PPM_ORDER = 2
 PPM_CACHE_WHEN_HITS = 10
 DG_WINDOW_SIZE = 5
 DG_WEIGHT_THRESHOLD = 0.8
-TRAIN_RATIO = 0.6
-for filename in os.listdir("."):
-    if filename.endswith(".json"):
-        file = open(filename, 'r')
-        rows = json.load(file)
-        idx_begin_test = len(rows) * TRAIN_RATIO
-        try:
-            ppm = PPMModel(PPM_ORDER, PPM_CACHE_WHEN_HITS)
-            dg = DGModel(DG_WINDOW_SIZE, DG_WEIGHT_THRESHOLD)
-            ppm_hit = 0
-            dg_hit = 0
-            ppm_hit_set = set()
-            dg_hit_set = set()
+TRAIN_RATIO = 0.8
+print("window_size={} url_buffer={} train_ratio={}\n".format(DG_WINDOW_SIZE, DG_WEIGHT_THRESHOLD,TRAIN_RATIO))
 
-            for idx, row in enumerate(rows):
-                url = row[1] + row[2]
-                if idx > idx_begin_test:
-                    if dg.predict(url):
-                        dg_hit = dg_hit + 1
-                        dg_hit_set.add(url)
-                    if ppm.predict(url):
-                        ppm_hit = ppm_hit + 1
-                        ppm_hit_set.add(url)
-                ppm.feed(url)
-                dg.feed(url)
 
-            print("ID:{} COUNT:{} PPM_CACHE_SIZE:{} PPM_HITS:{} PPM_PRECISION:{} PPM_RECALL:{} \
-            DG_CACHE_SIZE:{} PPM_HITS:{} PPM_PRECISION:{} PPM_RECALL:{}".format(
-                idx, len(rows),
-                ppm.cache_size(), ppm_hit, len(ppm_hit_set) / ppm.cache_size(), ppm_hit / len(rows),
-                dg.cache_size(), dg_hit, len(dg_hit_set) / dg.cache_size(), dg_hit / len(rows),
-            ))
+def test_all_domain():
+    print("filename,domain,count,DG_CACHE_SIZE,DG_HITS,DG_PRECISION,DG_RECALL")
+    for filename in os.listdir("."):
+        if filename.endswith(".json"):
+            file = open(filename, 'r')
+            all_rows = json.load(file)
+            if (len(all_rows)) == 0:
+                continue
 
-        except Exception as e:
-            print(e)
-        finally:
-            file.close()
+            domains = set([x[0] for x in all_rows])
+            for domain in domains:
+                rows = list(filter(lambda _:_[0] == domain,all_rows))
+                if(len(rows)<50):
+                    continue
+                idx_begin_test = len(rows) * TRAIN_RATIO
+                try:
+                    ppm = PPMModel(PPM_ORDER, PPM_CACHE_WHEN_HITS)
+                    dg = DGModel(DG_WINDOW_SIZE, DG_WEIGHT_THRESHOLD)
+                    # ppm_hit = 0
+                    dg_hit = 0
+                    # ppm_hit_set = set()
+                    dg_hit_set = set()
+
+                    for idx, row in enumerate(rows):
+                        url = row[1] + row[2]
+                        if not ('GET' in row[2]):
+                            continue
+                        if idx > idx_begin_test:
+                            if dg.predict(url):
+                                dg_hit = dg_hit + 1
+                                dg_hit_set.add(url)
+                            # if ppm.predict(url):
+                            # ppm_hit = ppm_hit + 1
+                            # ppm_hit_set.add(url)
+                        # ppm.feed(url)
+                        dg.feed(url)
+
+                    print(
+                        "{} ,{},{} ," \
+                            # "PPM_CACHE_SIZE:{} PPM_HITS:{} PPM_PRECISION:{} PPM_RECALL:{}" \
+                        "{},{},{},{}"
+                            .format(
+                            filename, domain,len(rows),
+                            # ppm.cache_size(), ppm_hit, len(ppm_hit_set) / ppm.cache_size(), ppm_hit / len(rows),
+                            dg.cache_size(), dg_hit, len(dg_hit_set) / (dg.cache_size() or 1), dg_hit / len(rows),
+                            # fix div by zero
+                        ))
+
+                except Exception as e:
+                    print(e)
+                    pass
+                finally:
+                    file.close()
+
+
+def test_all():
+    print("filename,count,DG_CACHE_SIZE,DG_HITS,DG_PRECISION,DG_RECALL")
+    for filename in os.listdir("."):
+        if filename.endswith(".json"):
+            file = open(filename, 'r')
+            rows = json.load(file)
+            if(len(rows)) == 0:
+                continue
+
+
+            idx_begin_test = len(rows) * TRAIN_RATIO
+            try:
+                ppm = PPMModel(PPM_ORDER, PPM_CACHE_WHEN_HITS)
+                dg= DGModel(DG_WINDOW_SIZE, DG_WEIGHT_THRESHOLD)
+                # ppm_hit = 0
+                dg_hit = 0
+                # ppm_hit_set = set()
+                dg_hit_set = set()
+
+                for idx, row in enumerate(rows):
+                    url = row[1] + row[2]
+                    if not ('GET' in row[2]):
+                        continue
+                    if idx > idx_begin_test:
+                        if dg.predict(url):
+                            dg_hit = dg_hit + 1
+                            dg_hit_set.add(url)
+                        # if ppm.predict(url):
+                            # ppm_hit = ppm_hit + 1
+                            # ppm_hit_set.add(url)
+                    # ppm.feed(url)
+                    dg.feed(url)
+
+                print(
+                    "{} ,{} ," \
+                    # "PPM_CACHE_SIZE:{} PPM_HITS:{} PPM_PRECISION:{} PPM_RECALL:{}" \
+                "{},{},{},{}"
+                    .format(
+                    filename, len(rows),
+                    # ppm.cache_size(), ppm_hit, len(ppm_hit_set) / ppm.cache_size(), ppm_hit / len(rows),
+                    dg.cache_size(), dg_hit, len(dg_hit_set) /( dg.cache_size() or 1), dg_hit / len(rows), # fix div by zero
+                ))
+
+            except Exception as e:
+                print(e)
+                pass
+            finally:
+                file.close()
+
+test_all_domain()
